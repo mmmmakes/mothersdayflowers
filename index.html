@@ -24,6 +24,13 @@
   .header h1 { font-family: 'Playfair Display', serif; font-size: clamp(1.3rem, 3.5vw, 1.9rem); font-weight: 400; letter-spacing: normal; color: var(--ink); font-style: italic; }
   .header p { font-size: 0.62rem; color: var(--muted); letter-spacing: 0.3em; text-transform: uppercase; margin-top: 0.3rem; }
 
+  /* How it works */
+  .how-it-works { width: 100%; max-width: 520px; color: var(--ink-light); font-family: 'Cormorant Garamond', serif; border-bottom: 1px solid var(--border); padding-bottom: 1.4rem; }
+  .how-it-works .eyebrow { font-size: 0.62rem; color: var(--muted); letter-spacing: 0.3em; text-transform: uppercase; text-align: center; margin-bottom: 0.6rem; }
+  .how-it-works ol { list-style: none; counter-reset: step; display: flex; flex-direction: column; gap: 0.05rem; font-size: 0.95rem; font-style: italic; padding-left: 0; line-height: 1.25; }
+  .how-it-works li { counter-increment: step; padding-left: 1.6rem; position: relative; }
+  .how-it-works li::before { content: counter(step) "."; position: absolute; left: 0; color: var(--accent); font-style: normal; }
+
   /* Canvas area */
   .canvas-wrap { position: relative; border: 1px solid var(--border); background: var(--paper); box-shadow: 0 1px 18px rgba(42,32,22,0.07), inset 0 0 50px rgba(195,178,140,0.12); }
   .canvas-wrap::after { content: ''; position: absolute; inset: 0; background: radial-gradient(ellipse at 5% 5%, rgba(195,178,140,0.25) 0%, transparent 45%), radial-gradient(ellipse at 95% 95%, rgba(175,158,120,0.18) 0%, transparent 45%); pointer-events: none; z-index: 3; }
@@ -100,8 +107,18 @@
   <p>Send a message, grow a garden</p>
 </div>
 
+<div class="how-it-works">
+  <p class="eyebrow">How it works</p>
+  <ol>
+    <li>Type your word</li>
+    <li>Select the plants you want to grow</li>
+    <li>Use the sliders to control how much to grow</li>
+    <li>Click grow to raise your plants!</li>
+  </ol>
+</div>
+
 <div class="input-wrap">
-  <input type="text" id="wordInput" placeholder="type a word…" maxlength="16" value="bloom" />
+  <input type="text" id="wordInput" placeholder="type a word…" maxlength="16" value="type here" />
 </div>
 
 <div class="canvas-wrap" id="canvasWrap">
