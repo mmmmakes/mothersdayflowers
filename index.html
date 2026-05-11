@@ -1,0 +1,1611 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Typegrowth</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;1,400&family=Cormorant+Garamond:ital,wght@0,300;1,300&display=swap');
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #f2ece0; --paper: #f8f3e8; --ink: #2a2016;
+    --ink-light: #5a4a30; --muted: #9a8a6a; --border: #cfc0a0; --accent: #5a6840;
+  }
+  html, body { min-height: 100%; background: var(--bg); color: var(--ink); font-family: 'Cormorant Garamond', serif; }
+  body {
+    display: flex; flex-direction: column; align-items: center;
+    padding: 2rem 1.5rem 2.5rem; gap: 1.2rem;
+    background-image: radial-gradient(ellipse at 30% 10%, rgba(180,160,110,0.1) 0%, transparent 55%),
+      radial-gradient(ellipse at 75% 85%, rgba(100,115,75,0.08) 0%, transparent 55%);
+  }
+
+  /* Header */
+  .header { text-align: center; border-bottom: 1px solid var(--border); padding-bottom: 0.9rem; width: 100%; max-width: 680px; }
+  .header h1 { font-family: 'Playfair Display', serif; font-size: clamp(1.3rem, 3.5vw, 1.9rem); font-weight: 400; letter-spacing: 0.12em; color: var(--ink); font-style: italic; }
+  .header p { font-size: 0.62rem; color: var(--muted); letter-spacing: 0.3em; text-transform: uppercase; margin-top: 0.3rem; }
+
+  /* Canvas area */
+  .canvas-wrap { position: relative; border: 1px solid var(--border); background: var(--paper); box-shadow: 0 1px 18px rgba(42,32,22,0.07), inset 0 0 50px rgba(195,178,140,0.12); }
+  .canvas-wrap::after { content: ''; position: absolute; inset: 0; background: radial-gradient(ellipse at 5% 5%, rgba(195,178,140,0.25) 0%, transparent 45%), radial-gradient(ellipse at 95% 95%, rgba(175,158,120,0.18) 0%, transparent 45%); pointer-events: none; z-index: 3; }
+  #canvasBg, #canvas { display: block; }
+  #canvasBg { position: absolute; top: 0; left: 0; z-index: 1; }
+  #canvas { position: relative; z-index: 2; }
+
+  /* Text input */
+  .input-wrap { width: 100%; max-width: 680px; border-bottom: 1.5px solid var(--ink); display: flex; align-items: center; gap: 0.5rem; }
+  .input-wrap::before { content: '❧'; color: var(--muted); font-size: 0.9rem; }
+  input[type="text"] { flex: 1; background: transparent; border: none; outline: none; color: var(--ink); font-family: 'Playfair Display', serif; font-size: 1.4rem; font-style: italic; padding: 0.45rem 0; letter-spacing: 0.04em; }
+  input[type="text"]::placeholder { color: var(--muted); }
+
+  /* Controls panel — below canvas */
+  .controls { width: 100%; max-width: 680px; display: flex; flex-direction: column; gap: 1rem; }
+
+  /* Plant rows: button + slider */
+  .plant-rows { display: flex; flex-direction: column; gap: 0.5rem; }
+  .plant-row { display: flex; align-items: center; gap: 1rem; transition: opacity 0.2s; }
+  .plant-btn {
+    width: 110px; flex-shrink: 0;
+    border: 1.5px solid var(--border); background: transparent;
+    color: var(--muted);
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 0.65rem; font-style: normal; letter-spacing: 0.18em; text-transform: uppercase;
+    padding: 0.5rem 0.4rem; text-align: center;
+    cursor: pointer; transition: all 0.15s;
+  }
+  .plant-btn.active { background: var(--ink); border-color: var(--ink); color: var(--paper); }
+  .plant-btn:hover:not(.active) { border-color: var(--ink-light); color: var(--ink); }
+
+  .slider-wrap { flex: 1; }
+  input[type="range"] {
+    -webkit-appearance: none; appearance: none;
+    width: 100%; height: 2px; background: var(--border); outline: none; cursor: pointer; border-radius: 0;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none;
+    width: 14px; height: 14px; background: var(--ink); border-radius: 50%;
+    cursor: pointer; transition: background 0.15s;
+  }
+  input[type="range"]::-webkit-slider-thumb:hover { background: var(--ink-light); }
+  input[type="range"].inactive { opacity: 0.25; pointer-events: none; }
+
+  /* Garden / Wild toggle */
+  .mode-row { display: flex; align-items: center; gap: 0.9rem; }
+  .mode-row.hidden { opacity: 0; pointer-events: none; height: 0; overflow: hidden; margin: 0; }
+  .mode-label { font-size: 0.63rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--muted); transition: color 0.2s; }
+  .mode-label.active-label { color: var(--ink); }
+  .toggle-switch { position: relative; width: 44px; height: 26px; flex-shrink: 0; cursor: pointer; }
+  .toggle-switch input { opacity: 0; width: 0; height: 0; position: absolute; }
+  .toggle-track { position: absolute; inset: 0; background: var(--border); border-radius: 13px; transition: background 0.2s; }
+  .toggle-switch input:checked + .toggle-track { background: var(--ink); }
+  .toggle-thumb { position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; background: var(--paper); border-radius: 50%; transition: transform 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,0.2); }
+  .toggle-switch input:checked ~ .toggle-thumb { transform: translateX(18px); }
+
+  /* Action row */
+  .action-row { display: flex; gap: 0.6rem; align-items: center; }
+  .grow-btn { background: var(--ink); border: none; color: var(--paper); font-family: 'Cormorant Garamond', serif; font-size: 0.82rem; font-style: italic; letter-spacing: 0.18em; padding: 0.7rem 2.5rem; cursor: pointer; transition: background 0.18s; }
+  .grow-btn:hover { background: var(--ink-light); }
+  .grow-btn.growing { background: var(--accent); cursor: default; }
+  .reset-btn { background: transparent; border: 1.5px solid var(--border); color: var(--muted); font-family: 'Cormorant Garamond', serif; font-size: 0.72rem; font-style: italic; padding: 0.7rem 1rem; cursor: pointer; transition: all 0.18s; }
+  .reset-btn:hover { border-color: var(--ink-light); color: var(--ink); }
+
+  /* Meta */
+  .meta { display: flex; justify-content: space-between; width: 100%; max-width: 680px; }
+  .meta span { font-size: 0.62rem; color: var(--muted); font-style: italic; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Typegrowth</h1>
+  <p>Botanical Typography · Art Nouveau</p>
+</div>
+
+<div class="input-wrap">
+  <input type="text" id="wordInput" placeholder="type a word…" maxlength="16" value="bloom" />
+</div>
+
+<div class="canvas-wrap" id="canvasWrap">
+  <canvas id="canvasBg"></canvas>
+  <canvas id="canvas"></canvas>
+</div>
+
+<div class="controls">
+
+  <div class="plant-rows">
+    <div class="plant-row">
+      <button class="plant-btn active" data-type="rose">Rose</button>
+      <div class="slider-wrap"><input type="range" min="0" max="100" value="50" id="slider-rose" /></div>
+    </div>
+    <div class="plant-row">
+      <button class="plant-btn" data-type="honeysuckle">Honeysuckle</button>
+      <div class="slider-wrap"><input type="range" min="0" max="100" value="50" id="slider-honeysuckle" /></div>
+    </div>
+    <div class="plant-row">
+      <button class="plant-btn" data-type="iris">Iris</button>
+      <div class="slider-wrap"><input type="range" min="0" max="100" value="50" id="slider-iris" /></div>
+    </div>
+    <div class="plant-row">
+      <button class="plant-btn" data-type="daisy">Daisy</button>
+      <div class="slider-wrap"><input type="range" min="0" max="100" value="50" id="slider-daisy" /></div>
+    </div>
+    <div class="plant-row">
+      <button class="plant-btn" data-type="tomato">Tomato</button>
+      <div class="slider-wrap"><input type="range" min="0" max="100" value="50" id="slider-tomato" /></div>
+    </div>
+    <div class="plant-row">
+      <button class="plant-btn" data-type="cucumber">Cucumber</button>
+      <div class="slider-wrap"><input type="range" min="0" max="100" value="50" id="slider-cucumber" /></div>
+    </div>
+  </div>
+
+  <div class="mode-row hidden" id="modeRow">
+    <span class="mode-label active-label" id="labelGarden">Garden</span>
+    <label class="toggle-switch">
+      <input type="checkbox" id="modeToggleInput" />
+      <div class="toggle-track"></div>
+      <div class="toggle-thumb"></div>
+    </label>
+    <span class="mode-label" id="labelWild">Wild</span>
+  </div>
+
+  <div class="action-row">
+    <button class="grow-btn" id="growBtn">Grow</button>
+    <button class="reset-btn" id="resetBtn">Reset</button>
+  </div>
+
+</div>
+
+<div class="meta">
+  <span id="statusText">Select plants and grow</span>
+  <span id="countText"></span>
+</div>
+
+<script>
+// ─────────────────────────────────────────────────────────────
+// ART NOUVEAU BOTANICAL TYPOGRAPHY
+//
+// Rendering philosophy from reference images:
+//  - Sinuous S-curve bezier stems, not straight lines
+//  - Species-accurate flower morphology per type
+//  - Muted, tonal palette: dusty rose, sage, ochre, cream
+//  - Thin ink outlines on botanical elements
+//  - Plants grow from the baseline and wrap the letterform
+//  - Two-canvas architecture: bg static, plant layer additive
+//  - All rand() baked at construction — no per-frame randomness
+// ─────────────────────────────────────────────────────────────
+
+const canvasBg = document.getElementById('canvasBg');
+const ctxBg    = canvasBg.getContext('2d');
+const canvas   = document.getElementById('canvas');
+const ctx      = canvas.getContext('2d');
+const growBtn     = document.getElementById('growBtn');
+const resetBtn    = document.getElementById('resetBtn');
+const wordInput   = document.getElementById('wordInput');
+const statusText  = document.getElementById('statusText');
+const countText   = document.getElementById('countText');
+
+// Canvas fills the centred column
+const W = Math.min(window.innerWidth - 48, 680);
+const H = 260;
+[canvasBg, canvas].forEach(c => { c.width = W; c.height = H; });
+const wrap = document.getElementById('canvasWrap');
+wrap.style.width = W + 'px'; wrap.style.height = H + 'px';
+
+let letterMask = null, plants = [], animFrame = null;
+let growing = false, selectedTypes = new Set(['rose']), spawnQueue = [], totalSpawned = 0;
+let growMode = 'together'; // 'together' | 'per-letter'
+
+// Per-type quantity weights (0–100), used to build weighted spawn pool
+const plantWeights = { rose:50, tomato:50, honeysuckle:50, daisy:50, iris:50, cucumber:50 };
+
+// ─── Utilities ────────────────────────────────────────────────
+const r   = (a, b) => a + Math.random() * (b - a);
+const rn  = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
+const pk  = arr => arr[Math.floor(Math.random() * arr.length)];
+const τ   = Math.PI * 2;
+
+// ─── Art Nouveau Palette ──────────────────────────────────────
+// Muted, dusty, tonal — matching the reference images exactly
+const PAL = {
+  rose: {
+    stems:    ['#7a6840','#6a5c30','#8a7848'],
+    petals:   ['#c8a0a0','#d4b0a8','#b89090','#e0c0b8','#c09898'],
+    petalHi:  ['#e8d0c8','#f0dcd4'],
+    petalSha: ['#a07878','#907070'],
+    center:   ['#c89040','#d4a050','#b07830'],
+    centerDot:'#7a4820',
+    leaves:   ['#6a7a48','#788550','#5a6a3c','#8a9558'],
+    leafVein: '#a0aa70',
+    bud:      '#c09898',
+    outline:  'rgba(80,55,30,0.35)',
+  },
+  tomato: {
+    stems:    ['#5a7230','#4a6228','#6a8238'],
+    petals:   ['#e8d040','#d8c030','#f0dc50','#dcc838','#e4d044'], // yellow star flowers
+    petalHi:  ['#f8f080','#fffaaa'],
+    petalSha: ['#b0a020','#a09018'],
+    center:   ['#4a6228','#3a5220','#5a7230'],
+    centerDot:'#2a3818',
+    fruit:    ['#c83020','#b82818','#d84028'], // ripe red
+    fruitUnripe: ['#6a8830','#5a7828'],
+    fruitHi:  'rgba(255,200,180,0.4)',
+    fruitHiG: 'rgba(200,255,150,0.35)',
+    leaves:   ['#4a6a28','#5a7a35','#3a5820','#6a8a40'],
+    leafVein: '#7aaa48',
+    bud:      '#d8d040',
+    outline:  'rgba(45,55,20,0.32)',
+  },
+  honeysuckle: {
+    stems:    ['#8a7840','#7a6830','#9a8850'],
+    petals:   ['#e8c8a0','#d4b090','#f0d4b0','#c8a880','#dcc0a0'],
+    petalHi:  ['#f8ecd8','#fff4e8'],
+    petalSha: ['#b09070','#a08060'],
+    center:   ['#c87840','#b86830','#d88850'],
+    centerDot:'#784020',
+    centerDot:'#784020',
+    leaves:   ['#607040','#708050','#506030'],
+    leafVein: '#90a060',
+    bud:      '#d4a870',
+    outline:  'rgba(75,55,25,0.32)',
+  },
+  daisy: {
+    stems:    ['#708048','#607038','#808858'],
+    petals:   ['#f0ece0','#e8e4d8','#f8f4e8','#e0dcd0','#f4f0e4'],
+    petalHi:  ['#ffffff','#fdfbf6'],
+    petalSha: ['#ccc8bc','#c0bcb0'],
+    center:   ['#c89030','#d4a040','#b88020'],
+    centerDot:'#8a5810',
+    leaves:   ['#5a7038','#6a8048','#4a6030'],
+    leafVein: '#8aa060',
+    bud:      '#e0dccc',
+    outline:  'rgba(60,50,25,0.28)',
+  },
+  iris: {
+    stems:    ['#6a7840','#7a8850','#5a6830'],
+    petals:   ['#a0a8c8','#b0b8d8','#9098b8','#c0c8e0','#8890b0'],
+    petalHi:  ['#d8ddf0','#e8ecf8'],
+    petalSha: ['#7880a8','#686e98'],
+    center:   ['#d4b840','#c8a830','#e0c850'],
+    centerDot:'#907020',
+    leaves:   ['#5a7040','#6a8050','#4a6030'],
+    leafVein: '#8aaa60',
+    bud:      '#b0b8d0',
+    outline:  'rgba(50,50,70,0.3)',
+  },
+  cucumber: {
+    stems:    ['#5a7828','#4a6820','#6a8830'],
+    petals:   ['#d4c840','#c8bc30','#dcd048','#c0b428','#d8cc3c'], // yellow trumpet flowers
+    petalHi:  ['#f0e870','#fffaaa'],
+    petalSha: ['#a09018','#908010'],
+    center:   ['#5a7020','#4a6018','#6a8028'],
+    centerDot:'#384810',
+    fruit:    ['#5a8830','#4a7828','#6a9838'], // deep green cucumber
+    fruitHi:  'rgba(180,230,140,0.35)',
+    fruitStripe: '#3a5818',
+    leaves:   ['#4a7028','#5a8035','#3a5e20','#6a9040'],
+    leafVein: '#80b048',
+    tendril:  '#6a8830',
+    bud:      '#c8c040',
+    outline:  'rgba(35,50,15,0.32)',
+  },
+};
+
+// ─── Mask helpers ─────────────────────────────────────────────
+function isOn(x, y) {
+  const ix = Math.round(x), iy = Math.round(y);
+  if (ix < 0 || ix >= W || iy < 0 || iy >= H) return false;
+  return letterMask.data[(iy * W + ix) * 4 + 3] > 80;
+}
+function isNear(x, y, rad) {
+  for (let dy = -rad; dy <= rad; dy += 2)
+    for (let dx = -rad; dx <= rad; dx += 2)
+      if (dx*dx+dy*dy <= rad*rad && isOn(x+dx, y+dy)) return true;
+  return false;
+}
+
+// ─── Core drawing: Art Nouveau bezier stem ────────────────────
+// Draws a flowing S-curve or C-curve stem — never a straight line
+function drawStem(x0, y0, x3, y3, cp1x, cp1y, cp2x, cp2y, width, color, pal) {
+  ctx.save();
+  // Soft shadow underneath for depth
+  ctx.beginPath();
+  ctx.moveTo(x0, y0);
+  ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, x3, y3);
+  ctx.strokeStyle = pal.outline;
+  ctx.lineWidth = width + 1.2;
+  ctx.lineCap = 'round';
+  ctx.stroke();
+  // Main stem
+  ctx.beginPath();
+  ctx.moveTo(x0, y0);
+  ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, x3, y3);
+  ctx.strokeStyle = color;
+  ctx.lineWidth = width;
+  ctx.stroke();
+  ctx.restore();
+}
+
+// Interpolate a point along a cubic bezier at t ∈ [0,1]
+function bezierPt(t, x0, y0, cp1x, cp1y, cp2x, cp2y, x3, y3) {
+  const mt = 1 - t;
+  return {
+    x: mt*mt*mt*x0 + 3*mt*mt*t*cp1x + 3*mt*t*t*cp2x + t*t*t*x3,
+    y: mt*mt*mt*y0 + 3*mt*mt*t*cp1y + 3*mt*t*t*cp2y + t*t*t*y3,
+  };
+}
+
+// ─── Leaf shapes — lobed, botanical ──────────────────────────
+function drawLeaf(cx, cy, angle, size, color, veinColor, palOut, variant = 0) {
+  if (size < 2) return;
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(angle);
+
+  if (variant === 0) {
+    // Simple pointed oval leaf
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.bezierCurveTo(size*0.25, -size*0.55, size*0.85, -size*0.42, size, 0);
+    ctx.bezierCurveTo(size*0.85, size*0.38, size*0.25, size*0.48, 0, 0);
+    ctx.fillStyle = color;
+    ctx.fill();
+    ctx.strokeStyle = palOut;
+    ctx.lineWidth = 0.5;
+    ctx.stroke();
+    // Midrib
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.bezierCurveTo(size*0.3, -size*0.05, size*0.7, size*0.04, size, 0);
+    ctx.strokeStyle = veinColor;
+    ctx.lineWidth = 0.7;
+    ctx.stroke();
+    // Lateral veins
+    for (let i = 1; i <= 3; i++) {
+      const t = i / 4;
+      const mx = size * t;
+      ctx.beginPath();
+      ctx.moveTo(mx, 0);
+      ctx.quadraticCurveTo(mx + size*0.08, -size*0.18*(1-t*0.5), mx + size*0.2, -size*0.25*(1-t*0.5));
+      ctx.strokeStyle = veinColor;
+      ctx.lineWidth = 0.4;
+      ctx.globalAlpha = 0.5;
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+  } else if (variant === 1) {
+    // Lobed leaf (anemone / poppy style)
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.bezierCurveTo(-size*0.15, -size*0.3, size*0.1, -size*0.65, size*0.35, -size*0.7);
+    ctx.bezierCurveTo(size*0.55, -size*0.75, size*0.6, -size*0.55, size*0.5, -size*0.4);
+    ctx.bezierCurveTo(size*0.7, -size*0.55, size*0.9, -size*0.3, size*0.85, -size*0.05);
+    ctx.bezierCurveTo(size*0.8, size*0.2, size*0.6, size*0.3, size*0.4, size*0.15);
+    ctx.bezierCurveTo(size*0.2, size*0.28, 0, size*0.2, 0, 0);
+    ctx.fillStyle = color;
+    ctx.fill();
+    ctx.strokeStyle = palOut;
+    ctx.lineWidth = 0.5;
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.bezierCurveTo(size*0.2, -size*0.1, size*0.5, -size*0.2, size*0.85, -size*0.05);
+    ctx.strokeStyle = veinColor;
+    ctx.lineWidth = 0.6;
+    ctx.stroke();
+  } else {
+    // Narrow strap leaf (iris / grass style)
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.bezierCurveTo(size*0.08, -size*0.4, size*0.12, -size*0.8, size*0.05, -size);
+    ctx.bezierCurveTo(-size*0.05, -size*0.8, -size*0.08, -size*0.4, 0, 0);
+    ctx.fillStyle = color;
+    ctx.fill();
+    ctx.strokeStyle = palOut;
+    ctx.lineWidth = 0.4;
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(size*0.02, -size);
+    ctx.strokeStyle = veinColor;
+    ctx.lineWidth = 0.5;
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+// ─── Petal shapes — Art Nouveau organic ───────────────────────
+// Each petal is a bezier, not a radial ellipse
+function drawPetal(cx, cy, angle, len, wid, color, hiColor, shaColor, palOut) {
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(angle);
+  // Shadow/outline
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.bezierCurveTo(-wid*0.6, -len*0.25, -wid*0.55, -len*0.72, 0, -len);
+  ctx.bezierCurveTo( wid*0.55, -len*0.72,  wid*0.6, -len*0.25, 0, 0);
+  ctx.strokeStyle = palOut;
+  ctx.lineWidth = 0.8;
+  ctx.stroke();
+  // Base fill
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.bezierCurveTo(-wid*0.6, -len*0.25, -wid*0.55, -len*0.72, 0, -len);
+  ctx.bezierCurveTo( wid*0.55, -len*0.72,  wid*0.6, -len*0.25, 0, 0);
+  ctx.fillStyle = color;
+  ctx.fill();
+  // Highlight streak — left side of petal
+  ctx.beginPath();
+  ctx.moveTo(-wid*0.08, -len*0.08);
+  ctx.bezierCurveTo(-wid*0.25, -len*0.4, -wid*0.2, -len*0.7, -wid*0.05, -len*0.92);
+  ctx.strokeStyle = hiColor;
+  ctx.lineWidth = wid*0.4;
+  ctx.lineCap = 'round';
+  ctx.globalAlpha = 0.4;
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+  // Shadow edge — right
+  ctx.beginPath();
+  ctx.moveTo(wid*0.08, -len*0.1);
+  ctx.bezierCurveTo(wid*0.3, -len*0.35, wid*0.28, -len*0.65, wid*0.1, -len*0.9);
+  ctx.strokeStyle = shaColor;
+  ctx.lineWidth = wid*0.3;
+  ctx.globalAlpha = 0.25;
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+  ctx.restore();
+}
+
+// Rounded open petal (anemone / daisy)
+function drawRoundPetal(cx, cy, angle, len, wid, color, hiColor, palOut) {
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(angle);
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.bezierCurveTo(-wid*0.55, -len*0.2, -wid*0.6, -len*0.65, 0, -len);
+  ctx.bezierCurveTo( wid*0.6, -len*0.65,  wid*0.55, -len*0.2, 0, 0);
+  ctx.strokeStyle = palOut;
+  ctx.lineWidth = 0.7;
+  ctx.stroke();
+  ctx.fillStyle = color;
+  ctx.fill();
+  // Central streak
+  ctx.beginPath();
+  ctx.moveTo(0, -len*0.05);
+  ctx.bezierCurveTo(-wid*0.1, -len*0.45, -wid*0.05, -len*0.8, 0, -len*0.96);
+  ctx.strokeStyle = hiColor;
+  ctx.lineWidth = wid*0.35;
+  ctx.globalAlpha = 0.35;
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+  ctx.restore();
+}
+
+// Iris-style drooping fall petal
+function drawFallPetal(cx, cy, angle, len, wid, color, hiColor, palOut) {
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(angle);
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.bezierCurveTo(-wid*0.5, len*0.15, -wid*0.6, len*0.65, -wid*0.2, len);
+  ctx.bezierCurveTo( wid*0.2, len*0.65,  wid*0.5, len*0.15, 0, 0);
+  ctx.strokeStyle = palOut;
+  ctx.lineWidth = 0.7;
+  ctx.stroke();
+  ctx.fillStyle = color;
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.bezierCurveTo(-wid*0.1, len*0.3, -wid*0.05, len*0.7, 0, len*0.96);
+  ctx.strokeStyle = hiColor;
+  ctx.lineWidth = wid*0.3;
+  ctx.globalAlpha = 0.3;
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+  ctx.restore();
+}
+
+// Honeysuckle trumpet — long curved tube, flares wide at mouth into 5 reflexed lobes
+// This is the correct morphology: narrow at base, swelling tube, open face
+function drawHoneysuckleTrumpet(cx, cy, angle, len, color, hiColor, shaColor, palOut) {
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(angle);
+
+  const tubeW  = len * 0.09;  // narrow base
+  const mouthW = len * 0.32;  // wide flared mouth
+
+  // Tube body — narrows at base, swells toward mouth
+  ctx.beginPath();
+  ctx.moveTo(-tubeW, 0);
+  ctx.bezierCurveTo(-tubeW*1.1, -len*0.35, -mouthW*0.8, -len*0.72, -mouthW, -len*0.88);
+  ctx.bezierCurveTo(-mouthW*1.1, -len*0.95, -mouthW*0.6, -len, 0, -len);
+  ctx.bezierCurveTo( mouthW*0.6, -len,  mouthW*1.1, -len*0.95, mouthW, -len*0.88);
+  ctx.bezierCurveTo( mouthW*0.8, -len*0.72,  tubeW*1.1, -len*0.35, tubeW, 0);
+  ctx.closePath();
+  ctx.strokeStyle = palOut;
+  ctx.lineWidth = 0.7;
+  ctx.stroke();
+  ctx.fillStyle = color;
+  ctx.fill();
+
+  // Highlight stripe down the tube
+  ctx.beginPath();
+  ctx.moveTo(-tubeW*0.3, -len*0.05);
+  ctx.bezierCurveTo(-tubeW*0.4, -len*0.4, -mouthW*0.3, -len*0.75, -mouthW*0.35, -len*0.9);
+  ctx.strokeStyle = hiColor;
+  ctx.lineWidth = tubeW * 0.9;
+  ctx.lineCap = 'round';
+  ctx.globalAlpha = 0.38;
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+
+  // Shadow on right edge
+  ctx.beginPath();
+  ctx.moveTo(tubeW*0.4, -len*0.05);
+  ctx.bezierCurveTo(tubeW*0.5, -len*0.38, mouthW*0.55, -len*0.7, mouthW*0.6, -len*0.88);
+  ctx.strokeStyle = shaColor;
+  ctx.lineWidth = tubeW * 0.7;
+  ctx.globalAlpha = 0.22;
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+
+  // Flared mouth lobes — 5 small reflexed petals at the opening
+  ctx.save();
+  ctx.translate(0, -len);
+  const nLobes = 5;
+  for (let i = 0; i < nLobes; i++) {
+    const la = (i / nLobes) * τ;
+    const llen = mouthW * 0.55;
+    const lwid = mouthW * 0.28;
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.bezierCurveTo(
+      Math.cos(la - 0.4) * lwid, Math.sin(la - 0.4) * lwid,
+      Math.cos(la) * llen * 0.8,  Math.sin(la) * llen * 0.8,
+      Math.cos(la) * llen,        Math.sin(la) * llen
+    );
+    ctx.bezierCurveTo(
+      Math.cos(la) * llen * 0.8,  Math.sin(la) * llen * 0.8,
+      Math.cos(la + 0.4) * lwid, Math.sin(la + 0.4) * lwid,
+      0, 0
+    );
+    ctx.fillStyle = color;
+    ctx.fill();
+    ctx.strokeStyle = palOut;
+    ctx.lineWidth = 0.5;
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  ctx.restore();
+}
+
+function drawCircle(x, y, r, color) {
+  ctx.beginPath(); ctx.arc(x, y, r, 0, τ);
+  ctx.fillStyle = color; ctx.fill();
+}
+
+function drawBud(x, y, size, color, stemColor, palOut) {
+  ctx.save();
+  // Short stem nub
+  ctx.beginPath();
+  ctx.moveTo(x, y + size*0.5);
+  ctx.lineTo(x, y);
+  ctx.strokeStyle = stemColor;
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  // Calyx
+  ctx.beginPath();
+  ctx.moveTo(x - size*0.35, y + size*0.15);
+  ctx.bezierCurveTo(x - size*0.3, y - size*0.2, x, y - size*0.3, x, y - size*0.3);
+  ctx.bezierCurveTo(x, y - size*0.3, x + size*0.3, y - size*0.2, x + size*0.35, y + size*0.15);
+  ctx.closePath();
+  ctx.fillStyle = stemColor;
+  ctx.fill();
+  // Bud tip
+  ctx.beginPath();
+  ctx.ellipse(x, y - size*0.4, size*0.28, size*0.42, 0, 0, τ);
+  ctx.fillStyle = color;
+  ctx.fill();
+  ctx.strokeStyle = palOut;
+  ctx.lineWidth = 0.6;
+  ctx.stroke();
+  ctx.restore();
+}
+
+// ─── PLANT CLASSES ────────────────────────────────────────────
+// Each plant = one botanical unit: stem + leaves + flower
+// Stem is a cubic bezier (S-curve for Art Nouveau feel)
+// Growth is animated by t ∈ [0,1] driving stem length and bloom
+
+class RosePlant {
+  constructor(x, y) {
+    this.x = x; this.y = y;
+    const p = PAL.rose;
+    this.progress = 0; this.maxP = r(140, 200); this.done = false; this.committed = false;
+    this.stemColor = pk(p.stems);
+    this.stemW = r(1.1, 1.7);
+    // S-curve stem: rises, curves to one side, turns tip upward
+    const h = r(45, 85);
+    const sway = r(-30, 30);
+    this.h = h;
+    // Control points for S-curve
+    this.cp1x = x + sway * 0.8; this.cp1y = y - h * 0.3;
+    this.cp2x = x + sway;       this.cp2y = y - h * 0.7;
+    this.tipX  = x + sway * 0.3; this.tipY = y - h;
+    // Leaves: 1-2 along the stem
+    this.leaves = [];
+    const nL = rn(1, 2);
+    for (let i = 0; i < nL; i++) {
+      const lt = r(0.3, 0.65);
+      const pt = bezierPt(lt, x,y, this.cp1x,this.cp1y, this.cp2x,this.cp2y, this.tipX,this.tipY);
+      const side = Math.random() > 0.5 ? 1 : -1;
+      this.leaves.push({ t: lt, x: pt.x, y: pt.y, side, size: r(10,18), color: pk(p.leaves), spawnT: lt });
+    }
+    // Flower
+    this.nPetal = rn(5, 7);
+    this.pLen = r(9, 16); this.pW = this.pLen * r(0.55, 0.75);
+    this.pColor = pk(p.petals); this.pHi = pk(p.petalHi); this.pSha = pk(p.petalSha);
+    this.cColor = pk(p.center); this.cdColor = p.centerDot;
+    this.nInner = rn(3, 5); this.iLen = this.pLen * r(0.55, 0.7);
+    this.hasBud = Math.random() > 0.5;
+    this.budOff = { x: r(-18,18), y: r(-8,5) };
+    this.pal = p;
+  }
+  update() { if (!this.done) { this.progress++; if (this.progress >= this.maxP) this.done = true; } }
+  draw() {
+    const t = Math.min(this.progress / this.maxP, 1);
+    const {x,y,cp1x,cp1y,cp2x,cp2y,tipX,tipY,pal} = this;
+    // Animated tip along bezier
+    const tip = bezierPt(t, x,y, cp1x,cp1y, cp2x,cp2y, tipX,tipY);
+    // Stem (draw up to current t)
+    ctx.save();
+    ctx.beginPath();
+    // Draw partial bezier by subdividing
+    const steps = 20;
+    ctx.moveTo(x, y);
+    for (let i = 1; i <= steps; i++) {
+      const st = (i/steps) * t;
+      const pt = bezierPt(st, x,y, cp1x,cp1y, cp2x,cp2y, tipX,tipY);
+      ctx.lineTo(pt.x, pt.y);
+    }
+    ctx.strokeStyle = pal.outline;
+    ctx.lineWidth = this.stemW + 1.2;
+    ctx.lineCap = 'round'; ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    for (let i = 1; i <= steps; i++) {
+      const st = (i/steps) * t;
+      const pt = bezierPt(st, x,y, cp1x,cp1y, cp2x,cp2y, tipX,tipY);
+      ctx.lineTo(pt.x, pt.y);
+    }
+    ctx.strokeStyle = this.stemColor;
+    ctx.lineWidth = this.stemW;
+    ctx.stroke();
+    ctx.restore();
+    // Leaves
+    for (const lf of this.leaves) {
+      if (t < lf.spawnT) continue;
+      const lt = Math.min((t - lf.spawnT) / 0.2, 1);
+      const leafAngle = lf.side * r(0.6, 1.1);
+      ctx.save(); ctx.globalAlpha = lt;
+      drawLeaf(lf.x, lf.y, leafAngle, lt * lf.size, lf.color, pal.leafVein, pal.outline, 0);
+      ctx.restore();
+    }
+    // Flower at tip — blooms in last 35%
+    if (t > 0.65) {
+      const bt = Math.min((t - 0.65) / 0.35, 1);
+      const ps = bt;
+      ctx.save(); ctx.globalAlpha = bt; ctx.translate(tip.x, tip.y);
+      // Outer petals
+      for (let i = 0; i < this.nPetal; i++) {
+        const a = (i / this.nPetal) * τ + 0.2;
+        drawPetal(0, 0, a, this.pLen*ps, this.pW*ps, this.pColor, this.pHi, this.pSha, pal.outline);
+      }
+      // Inner petals — slightly rotated, shorter
+      for (let i = 0; i < this.nInner; i++) {
+        const a = (i / this.nInner) * τ + (τ / (this.nPetal*2));
+        drawPetal(0, 0, a, this.iLen*ps, this.pW*0.65*ps, this.pColor, this.pHi, this.pSha, pal.outline);
+      }
+      // Center disc
+      const cr = this.pLen * 0.22 * ps;
+      drawCircle(0, 0, cr, this.cColor);
+      // Stamens
+      ctx.save(); ctx.globalAlpha = 0.85;
+      for (let i = 0; i < 8; i++) {
+        const sa = (i/8)*τ, sr = cr*0.65;
+        drawCircle(Math.cos(sa)*sr, Math.sin(sa)*sr, cr*0.15, this.cdColor);
+      }
+      drawCircle(0, 0, cr*0.35, this.cdColor);
+      ctx.restore(); ctx.restore();
+    }
+    // Bud on side branch
+    if (this.hasBud && t > 0.4) {
+      const bp = Math.min((t-0.4)/0.25, 1);
+      ctx.save(); ctx.globalAlpha = bp;
+      drawBud(tip.x + this.budOff.x, tip.y + this.budOff.y, 9*bp, pal.bud, this.stemColor, pal.outline);
+      ctx.restore();
+    }
+  }
+}
+
+class TomatoPlant {
+  constructor(x, y) {
+    this.x = x; this.y = y;
+    const p = PAL.tomato;
+    this.progress = 0; this.maxP = r(160, 230); this.done = false; this.committed = false;
+    this.stemColor = pk(p.stems); this.stemW = r(1.2, 1.8);
+    // Tomato: upright stem with pronounced S-curve sway
+    const h = r(50, 85); const sway = r(-30, 30);
+    this.h = h;
+    this.cp1x = x + sway*0.7;  this.cp1y = y - h*0.3;
+    this.cp2x = x - sway*0.4;  this.cp2y = y - h*0.65;
+    this.tipX  = x + sway*0.2; this.tipY = y - h;
+    // Compound leaves — serrated, spawn along stem
+    this.leaves = [];
+    const nL = rn(2, 4);
+    for (let i = 0; i < nL; i++) {
+      const lt = r(0.15, 0.65);
+      const pt = bezierPt(lt, x,y, this.cp1x,this.cp1y, this.cp2x,this.cp2y, this.tipX,this.tipY);
+      this.leaves.push({ t: lt, x: pt.x, y: pt.y, side: Math.random()>0.5?1:-1, size: r(10,18), color: pk(p.leaves), spawnT: lt, angle: r(0.55,1.05) });
+      // Opposite smaller leaflet
+      if (Math.random() > 0.4) {
+        this.leaves.push({ t: lt+0.02, x: pt.x, y: pt.y, side: Math.random()>0.5?1:-1, size: r(7,12), color: pk(p.leaves), spawnT: lt+0.02, angle: r(0.55,1.05) });
+      }
+    }
+    // Side branches with fruit or flowers — fruit probability reduced to ~25%
+    this.branches = Array.from({length: rn(1,3)}, () => {
+      const bt = r(0.3, 0.7);
+      const pt = bezierPt(bt, x,y, this.cp1x,this.cp1y, this.cp2x,this.cp2y, this.tipX,this.tipY);
+      const side = Math.random()>0.5?1:-1;
+      return {
+        spawnT: bt, x: pt.x, y: pt.y, side,
+        len: r(14, 28),
+        angle: -Math.PI/2 + side*r(0.4, 0.9),
+        hasFruit: Math.random() > 0.75,
+        ripe: Math.random() > 0.45,
+        nTube: rn(4,6),
+        pColor: pk(p.petals), pHi: pk(p.petalHi), pSha: pk(p.petalSha),
+        cColor: pk(p.center),
+        fruitColor: Math.random()>0.5 ? pk(p.fruit) : pk(p.fruitUnripe),
+      };
+    });
+    // Tip star flower (yellow, 5 petals — botanical tomato flower)
+    this.tipPColor = pk(p.petals); this.tipPHi = pk(p.petalHi);
+    this.tipPSha = pk(p.petalSha); this.tipCColor = pk(p.center);
+    this.pLen = r(5, 9); this.pW = this.pLen * r(0.45, 0.6);
+    this.pal = p;
+  }
+  update() { if (!this.done) { this.progress++; if (this.progress >= this.maxP) this.done = true; } }
+  draw() {
+    const t = Math.min(this.progress / this.maxP, 1);
+    const {x,y,cp1x,cp1y,cp2x,cp2y,tipX,tipY,pal} = this;
+    const tip = bezierPt(t,x,y,cp1x,cp1y,cp2x,cp2y,tipX,tipY);
+    const steps = 20;
+    // Draw stem
+    ctx.save();
+    ctx.beginPath(); ctx.moveTo(x,y);
+    for(let i=1;i<=steps;i++){const pt=bezierPt((i/steps)*t,x,y,cp1x,cp1y,cp2x,cp2y,tipX,tipY);ctx.lineTo(pt.x,pt.y);}
+    ctx.strokeStyle=pal.outline;ctx.lineWidth=this.stemW+1.2;ctx.lineCap='round';ctx.stroke();
+    ctx.beginPath();ctx.moveTo(x,y);
+    for(let i=1;i<=steps;i++){const pt=bezierPt((i/steps)*t,x,y,cp1x,cp1y,cp2x,cp2y,tipX,tipY);ctx.lineTo(pt.x,pt.y);}
+    ctx.strokeStyle=this.stemColor;ctx.lineWidth=this.stemW;ctx.stroke();
+    ctx.restore();
+    // Leaves
+    for (const lf of this.leaves) {
+      if(t<lf.spawnT)continue;
+      const lt=Math.min((t-lf.spawnT)/0.18,1);
+      ctx.save();ctx.globalAlpha=lt;
+      // Lobed leaf (variant 1) for tomato's serrated compound leaf
+      drawLeaf(lf.x,lf.y,lf.side*lf.angle,lt*lf.size,lf.color,pal.leafVein,pal.outline,1);
+      ctx.restore();
+    }
+    // Side branches
+    for (const br of this.branches) {
+      if(t<br.spawnT)continue;
+      const bp=Math.min((t-br.spawnT)/0.25,1);
+      const brTipX=br.x+Math.cos(br.angle)*br.len*bp;
+      const brTipY=br.y+Math.sin(br.angle)*br.len*bp;
+      // Branch stem — straight-ish
+      ctx.save();
+      ctx.beginPath();ctx.moveTo(br.x,br.y);
+      const bmx=(br.x+brTipX)/2+r(-5,5),bmy=(br.y+brTipY)/2+r(-4,4);
+      ctx.quadraticCurveTo(bmx,bmy,brTipX,brTipY);
+      ctx.strokeStyle=pal.outline;ctx.lineWidth=this.stemW*0.6+0.8;ctx.lineCap='round';ctx.stroke();
+      ctx.beginPath();ctx.moveTo(br.x,br.y);
+      ctx.quadraticCurveTo(bmx,bmy,brTipX,brTipY);
+      ctx.strokeStyle=this.stemColor;ctx.lineWidth=this.stemW*0.6;ctx.stroke();
+      ctx.restore();
+      // Fruit or flower at tip of branch
+      if(bp>0.7){
+        const fp=Math.min((bp-0.7)/0.3,1);
+        ctx.save();ctx.globalAlpha=fp;
+        if(br.hasFruit){
+          // Tomato fruit — round with calyx
+          const fr=5+fp*6;
+          ctx.translate(brTipX,brTipY);
+          // Calyx (green star)
+          ctx.save();
+          for(let i=0;i<5;i++){
+            const ca=(i/5)*τ-Math.PI/2;
+            ctx.beginPath();
+            ctx.moveTo(0,-fr*0.5);
+            ctx.bezierCurveTo(Math.cos(ca)*fr*0.3,-fr*0.3,Math.cos(ca)*fr*0.6,-fr*0.1,Math.cos(ca)*fr*0.5,fr*0.1);
+            ctx.strokeStyle=pk(pal.leaves);ctx.lineWidth=1;ctx.stroke();
+          }
+          ctx.restore();
+          // Fruit body
+          drawCircle(0,fr*0.3,fr,br.fruitColor);
+          // Highlight
+          ctx.beginPath();ctx.arc(-fr*0.28,fr*0.05,fr*0.32,0,τ);
+          ctx.fillStyle=br.ripe?pal.fruitHi:pal.fruitHiG;ctx.fill();
+          // Outline
+          ctx.beginPath();ctx.arc(0,fr*0.3,fr,0,τ);
+          ctx.strokeStyle=pal.outline;ctx.lineWidth=0.7;ctx.stroke();
+        } else {
+          // Yellow star flower
+          ctx.translate(brTipX,brTipY);
+          for(let i=0;i<5;i++){
+            const a=(i/5)*τ;
+            drawPetal(0,0,a,this.pLen*fp,this.pW*fp,br.pColor,br.pHi,br.pSha,pal.outline);
+          }
+          drawCircle(0,0,this.pLen*0.25*fp,br.cColor);
+        }
+        ctx.restore();
+      }
+    }
+    // Tip flower (star)
+    if(t>0.7){
+      const bt=Math.min((t-0.7)/0.3,1);
+      ctx.save();ctx.globalAlpha=bt;ctx.translate(tip.x,tip.y);
+      for(let i=0;i<5;i++){
+        const a=(i/5)*τ;
+        drawPetal(0,0,a,this.pLen*bt,this.pW*bt,this.tipPColor,this.tipPHi,this.tipPSha,pal.outline);
+      }
+      drawCircle(0,0,this.pLen*0.28*bt,this.tipCColor);
+      ctx.restore();
+    }
+  }
+}
+
+class HoneysucklePlant {
+  constructor(x, y) {
+    this.x = x; this.y = y;
+    const p = PAL.honeysuckle;
+    this.progress = 0; this.maxP = r(150, 220); this.done = false; this.committed = false;
+    this.stemColor = pk(p.stems); this.stemW = r(1.0, 1.5);
+    // Honeysuckle trails and twines — long wandering stem
+    const h = r(55, 90); const sway = r(-35, 35);
+    this.h = h;
+    this.cp1x = x + sway;       this.cp1y = y - h*0.28;
+    this.cp2x = x - sway*0.6;   this.cp2y = y - h*0.65;
+    this.tipX  = x + sway*0.2;  this.tipY = y - h;
+    // Trailing tendril curl at tip
+    this.tendrilAngle = r(0.3, 1.2) * (Math.random()>0.5?1:-1);
+    // Leaves in opposite pairs
+    this.leaves = [];
+    const nL = rn(2, 4);
+    for (let i = 0; i < nL; i++) {
+      const lt = r(0.15, 0.6);
+      const pt = bezierPt(lt, x,y, this.cp1x,this.cp1y, this.cp2x,this.cp2y, this.tipX,this.tipY);
+      // Pair on both sides
+      this.leaves.push({ t: lt, x: pt.x, y: pt.y, side:  1, size: r(8,14), color: pk(p.leaves), spawnT: lt, angle: r(0.6,1.0) });
+      this.leaves.push({ t: lt, x: pt.x, y: pt.y, side: -1, size: r(8,14), color: pk(p.leaves), spawnT: lt, angle: r(0.6,1.0) });
+    }
+    // Honeysuckle cluster of tubular flowers
+    this.nFlower = rn(3, 5);
+    this.flowers = Array.from({length: this.nFlower}, (_, i) => ({
+      offX: r(-12, 12), offY: r(-10, 8),
+      pLen: r(12, 20), color: pk(p.petals), hi: pk(p.petalHi), sha: pk(p.petalSha),
+      angle: (i/this.nFlower)*τ + r(-0.3,0.3),
+    }));
+    this.pal = p;
+  }
+  update() { if (!this.done) { this.progress++; if (this.progress >= this.maxP) this.done = true; } }
+  draw() {
+    const t = Math.min(this.progress / this.maxP, 1);
+    const {x,y,cp1x,cp1y,cp2x,cp2y,tipX,tipY,pal} = this;
+    const tip = bezierPt(t, x,y, cp1x,cp1y, cp2x,cp2y, tipX,tipY);
+    const steps = 22;
+    ctx.save();
+    ctx.beginPath(); ctx.moveTo(x,y);
+    for (let i=1;i<=steps;i++){const pt=bezierPt((i/steps)*t,x,y,cp1x,cp1y,cp2x,cp2y,tipX,tipY);ctx.lineTo(pt.x,pt.y);}
+    ctx.strokeStyle=pal.outline;ctx.lineWidth=this.stemW+1.1;ctx.lineCap='round';ctx.stroke();
+    ctx.beginPath();ctx.moveTo(x,y);
+    for (let i=1;i<=steps;i++){const pt=bezierPt((i/steps)*t,x,y,cp1x,cp1y,cp2x,cp2y,tipX,tipY);ctx.lineTo(pt.x,pt.y);}
+    ctx.strokeStyle=this.stemColor;ctx.lineWidth=this.stemW;ctx.stroke();
+    ctx.restore();
+    // Tendril curl at tip
+    if (t > 0.5) {
+      const tp = Math.min((t-0.5)/0.25, 1);
+      ctx.save(); ctx.globalAlpha = tp*0.7;
+      ctx.beginPath();
+      ctx.arc(tip.x + 8, tip.y - 4, 6*tp, 0, Math.PI*1.5);
+      ctx.strokeStyle = this.stemColor; ctx.lineWidth = 0.7; ctx.stroke();
+      ctx.restore();
+    }
+    for (const lf of this.leaves) {
+      if (t < lf.spawnT) continue;
+      const lt = Math.min((t-lf.spawnT)/0.15,1);
+      ctx.save(); ctx.globalAlpha=lt;
+      drawLeaf(lf.x,lf.y, lf.side*lf.angle, lt*lf.size, lf.color, pal.leafVein, pal.outline, 0);
+      ctx.restore();
+    }
+    if (t > 0.6) {
+      const bt = Math.min((t-0.6)/0.4, 1);
+      for (const fl of this.flowers) {
+        ctx.save(); ctx.globalAlpha = bt;
+        ctx.translate(tip.x + fl.offX*bt, tip.y + fl.offY*bt);
+        // One trumpet per flower cluster position, angled outward
+        drawHoneysuckleTrumpet(0, 0, fl.angle, fl.pLen*bt, fl.color, fl.hi, fl.sha, pal.outline);
+        // Protruding stamens at mouth
+        ctx.save();
+        ctx.globalAlpha = 0.75;
+        for (let s = 0; s < 5; s++) {
+          const sa = (s/5)*τ + fl.angle;
+          const sr = fl.pLen * 0.18 * bt;
+          ctx.beginPath();
+          ctx.moveTo(Math.cos(fl.angle)*fl.pLen*bt*0.92, Math.sin(fl.angle)*fl.pLen*bt*0.92);
+          ctx.lineTo(
+            Math.cos(fl.angle)*fl.pLen*bt*0.92 + Math.cos(sa)*sr,
+            Math.sin(fl.angle)*fl.pLen*bt*0.92 + Math.sin(sa)*sr
+          );
+          ctx.strokeStyle = pal.centerDot; ctx.lineWidth = 0.6; ctx.stroke();
+          drawCircle(
+            Math.cos(fl.angle)*fl.pLen*bt*0.92 + Math.cos(sa)*sr,
+            Math.sin(fl.angle)*fl.pLen*bt*0.92 + Math.sin(sa)*sr,
+            1.2, pal.centerDot
+          );
+        }
+        ctx.restore();
+        ctx.restore();
+      }
+    }
+  }
+}
+
+class DaisyPlant {
+  constructor(x, y) {
+    this.x = x; this.y = y;
+    const p = PAL.daisy;
+    this.progress = 0; this.maxP = r(120, 170); this.done = false; this.committed = false;
+    this.stemColor = pk(p.stems); this.stemW = r(0.8, 1.3);
+    const h = r(40, 72); const sway = r(-20, 20);
+    this.cp1x = x+sway*0.4; this.cp1y = y-h*0.32;
+    this.cp2x = x+sway*0.8; this.cp2y = y-h*0.68;
+    this.tipX  = x+sway*0.6; this.tipY = y-h;
+    this.leaves = [];
+    const nL = rn(1, 2);
+    for (let i=0;i<nL;i++){
+      const lt=r(0.25,0.6);
+      const pt=bezierPt(lt,x,y,this.cp1x,this.cp1y,this.cp2x,this.cp2y,this.tipX,this.tipY);
+      this.leaves.push({t:lt,x:pt.x,y:pt.y,side:Math.random()>0.5?1:-1,size:r(8,15),color:pk(p.leaves),spawnT:lt});
+    }
+    this.nPetal = rn(12, 18);
+    this.pLen = r(8,14); this.pW = this.pLen*r(0.3,0.45);
+    this.pColor = pk(p.petals); this.pHi = pk(p.petalHi);
+    this.cColor = pk(p.center); this.cdColor = p.centerDot;
+    // Daisy has slight drooping/uneven petals
+    this.petalAngles = Array.from({length:this.nPetal},(_,i)=>(i/this.nPetal)*τ + r(-0.05,0.05));
+    this.petalLens   = Array.from({length:this.nPetal},()=>this.pLen*r(0.88,1.1));
+    this.pal = p;
+  }
+  update() { if (!this.done){this.progress++;if(this.progress>=this.maxP)this.done=true;} }
+  draw() {
+    const t = Math.min(this.progress/this.maxP, 1);
+    const {x,y,cp1x,cp1y,cp2x,cp2y,tipX,tipY,pal} = this;
+    const tip = bezierPt(t,x,y,cp1x,cp1y,cp2x,cp2y,tipX,tipY);
+    const steps=18;
+    ctx.save();
+    ctx.beginPath();ctx.moveTo(x,y);
+    for(let i=1;i<=steps;i++){const pt=bezierPt((i/steps)*t,x,y,cp1x,cp1y,cp2x,cp2y,tipX,tipY);ctx.lineTo(pt.x,pt.y);}
+    ctx.strokeStyle=pal.outline;ctx.lineWidth=this.stemW+1;ctx.lineCap='round';ctx.stroke();
+    ctx.beginPath();ctx.moveTo(x,y);
+    for(let i=1;i<=steps;i++){const pt=bezierPt((i/steps)*t,x,y,cp1x,cp1y,cp2x,cp2y,tipX,tipY);ctx.lineTo(pt.x,pt.y);}
+    ctx.strokeStyle=this.stemColor;ctx.lineWidth=this.stemW;ctx.stroke();
+    ctx.restore();
+    for (const lf of this.leaves) {
+      if(t<lf.spawnT)continue;
+      const lt=Math.min((t-lf.spawnT)/0.18,1);
+      ctx.save();ctx.globalAlpha=lt;
+      drawLeaf(lf.x,lf.y,lf.side*r(0.55,0.95),lt*lf.size,lf.color,pal.leafVein,pal.outline,0);
+      ctx.restore();
+    }
+    if (t > 0.6) {
+      const bt=Math.min((t-0.6)/0.4,1);
+      ctx.save();ctx.globalAlpha=bt;ctx.translate(tip.x,tip.y);
+      for (let i=0;i<this.nPetal;i++) {
+        drawRoundPetal(0,0,this.petalAngles[i],this.petalLens[i]*bt,this.pW*bt,this.pColor,this.pHi,pal.outline);
+      }
+      const cr=this.pLen*0.28*bt;
+      drawCircle(0,0,cr,this.cColor);
+      ctx.save();ctx.globalAlpha=0.8;
+      for(let i=0;i<10;i++){
+        const sa=(i/10)*τ,sr=cr*0.68;
+        drawCircle(Math.cos(sa)*sr,Math.sin(sa)*sr,cr*0.11,this.cdColor);
+      }
+      drawCircle(0,0,cr*0.28,this.cdColor);
+      ctx.restore();ctx.restore();
+    }
+  }
+}
+
+class IrisPlant {
+  constructor(x, y) {
+    this.x = x; this.y = y;
+    const p = PAL.iris;
+    this.progress = 0; this.maxP = r(160, 220); this.done = false; this.committed = false;
+    this.stemColor = pk(p.stems); this.stemW = r(1.2, 1.8);
+    const h = r(55, 90); const sway = r(-15, 15);
+    this.cp1x=x+sway*0.3;this.cp1y=y-h*0.38;
+    this.cp2x=x+sway*0.7;this.cp2y=y-h*0.72;
+    this.tipX=x+sway*0.5;this.tipY=y-h;
+    // Iris has long strap leaves
+    this.leaves=[];
+    const nL=rn(2,3);
+    for(let i=0;i<nL;i++){
+      const lt=r(0.05,0.4);
+      const pt=bezierPt(lt,x,y,this.cp1x,this.cp1y,this.cp2x,this.cp2y,this.tipX,this.tipY);
+      this.leaves.push({t:lt,x:pt.x,y:pt.y,side:Math.random()>0.5?1:-1,size:r(20,40),color:pk(p.leaves),spawnT:lt,angle:r(0.2,0.6)});
+    }
+    // Iris: 3 standards (up) + 3 falls (down) + optional 3 style arms
+    this.pLen=r(11,18);this.pW=this.pLen*r(0.5,0.68);
+    this.pColor=pk(p.petals);this.pHi=pk(p.petalHi);this.pSha=pk(p.petalSha);
+    this.cColor=pk(p.center);this.pal=p;
+    this.budOffX = r(-15,15); this.budOffY = r(5,18);
+  }
+  update(){if(!this.done){this.progress++;if(this.progress>=this.maxP)this.done=true;}}
+  draw(){
+    const t=Math.min(this.progress/this.maxP,1);
+    const {x,y,cp1x,cp1y,cp2x,cp2y,tipX,tipY,pal}=this;
+    const tip=bezierPt(t,x,y,cp1x,cp1y,cp2x,cp2y,tipX,tipY);
+    const steps=20;
+    ctx.save();
+    ctx.beginPath();ctx.moveTo(x,y);
+    for(let i=1;i<=steps;i++){const pt=bezierPt((i/steps)*t,x,y,cp1x,cp1y,cp2x,cp2y,tipX,tipY);ctx.lineTo(pt.x,pt.y);}
+    ctx.strokeStyle=pal.outline;ctx.lineWidth=this.stemW+1.3;ctx.lineCap='round';ctx.stroke();
+    ctx.beginPath();ctx.moveTo(x,y);
+    for(let i=1;i<=steps;i++){const pt=bezierPt((i/steps)*t,x,y,cp1x,cp1y,cp2x,cp2y,tipX,tipY);ctx.lineTo(pt.x,pt.y);}
+    ctx.strokeStyle=this.stemColor;ctx.lineWidth=this.stemW;ctx.stroke();
+    ctx.restore();
+    // Strap leaves
+    for(const lf of this.leaves){
+      if(t<lf.spawnT)continue;
+      const lt=Math.min((t-lf.spawnT)/0.22,1);
+      ctx.save();ctx.globalAlpha=lt;
+      drawLeaf(lf.x,lf.y,lf.side*lf.angle,lt*lf.size,lf.color,pal.leafVein,pal.outline,2);
+      ctx.restore();
+    }
+    if(t>0.58){
+      const bt=Math.min((t-0.58)/0.42,1);
+      ctx.save();ctx.globalAlpha=bt;ctx.translate(tip.x,tip.y);
+      // 3 standards (upright petals)
+      for(let i=0;i<3;i++){
+        const a=(i/3)*τ+(Math.PI/6);
+        drawPetal(0,0,a,this.pLen*bt,this.pW*bt,this.pColor,this.pHi,this.pSha,pal.outline);
+      }
+      // 3 falls (drooping petals — distinct iris character)
+      for(let i=0;i<3;i++){
+        const a=(i/3)*τ+(Math.PI/6)+Math.PI/3;
+        drawFallPetal(0,0,a,this.pLen*0.85*bt,this.pW*0.9*bt,this.pColor,this.pHi,pal.outline);
+      }
+      // Style arms
+      ctx.save();
+      ctx.strokeStyle=pal.center[0];ctx.lineWidth=this.pLen*0.14*bt;ctx.lineCap='round';
+      for(let i=0;i<3;i++){
+        const a=(i/3)*τ+Math.PI/6;
+        ctx.beginPath();
+        ctx.moveTo(0,0);
+        const ex=Math.cos(a-Math.PI/2)*this.pLen*0.4*bt;
+        const ey=Math.sin(a-Math.PI/2)*this.pLen*0.4*bt;
+        ctx.lineTo(ex,ey);
+        ctx.stroke();
+      }
+      ctx.restore();
+      drawCircle(0,0,this.pLen*0.12*bt,this.cColor);
+      ctx.restore();
+    }
+    // Bud on shorter side stem
+    if(t>0.35){
+      const bp=Math.min((t-0.35)/0.2,1);
+      const budX=tip.x+this.budOffX,budY=tip.y+this.budOffY;
+      ctx.save();ctx.globalAlpha=bp;
+      drawBud(budX,budY,8*bp,pal.bud,this.stemColor,pal.outline);
+      ctx.restore();
+    }
+  }
+}
+
+// ─── Contour tracing (from v3) ────────────────────────────────
+function getEdgePixels(mask) {
+  const edge = new Uint8Array(W*H);
+  for (let y=1;y<H-1;y++) for(let x=1;x<W-1;x++){
+    if(mask.data[(y*W+x)*4+3]<80)continue;
+    let e=false;
+    outer:for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){
+      if(!dx&&!dy)continue;
+      if(mask.data[((y+dy)*W+(x+dx))*4+3]<80){e=true;break outer;}
+    }
+    if(e)edge[y*W+x]=1;
+  }
+  return edge;
+}
+
+function traceContours(edge) {
+  const visited=new Uint8Array(W*H);const chains=[];
+  const edgeSet=new Set();
+  for(let i=0;i<W*H;i++)if(edge[i])edgeSet.add(i);
+  for(const si of edgeSet){
+    if(visited[si])continue;
+    const sx=si%W,sy=Math.floor(si/W);
+    const comp=[];const q=[{x:sx,y:sy}];visited[si]=1;
+    while(q.length){
+      const p=q.shift();comp.push(p);
+      for(let dy=-2;dy<=2;dy++)for(let dx=-2;dx<=2;dx++){
+        if(!dx&&!dy)continue;
+        const nx=p.x+dx,ny=p.y+dy;
+        if(nx<0||nx>=W||ny<0||ny>=H)continue;
+        const ni=ny*W+nx;
+        if(edgeSet.has(ni)&&!visited[ni]){visited[ni]=1;q.push({x:nx,y:ny});}
+      }
+    }
+    if(comp.length<8)continue;
+    comp.sort((a,b)=>b.y-a.y);
+    const chain=[comp[0]];const rem=comp.slice(1);
+    while(rem.length){
+      const last=chain[chain.length-1];let best=Infinity,bi=-1;
+      for(let i=0;i<rem.length;i++){
+        const dx=rem[i].x-last.x,dy=rem[i].y-last.y,d=dx*dx+dy*dy;
+        if(d<best){best=d;bi=i;}
+      }
+      if(best>100)break;
+      chain.push(rem[bi]);rem.splice(bi,1);
+    }
+    chains.push(chain);
+  }
+  return chains;
+}
+
+function buildSpawnQueue(chains, spacing, trimEdgeX = 0) {
+  const pts=[];
+  for(const chain of chains){
+    let dist=0,next=0;
+    for(let i=1;i<chain.length;i++){
+      const dx=chain[i].x-chain[i-1].x,dy=chain[i].y-chain[i-1].y;
+      dist+=Math.sqrt(dx*dx+dy*dy);
+      if(dist>=next){
+        const px=chain[i].x, py=chain[i].y;
+        // Skip points too close to the canvas left/right edges (stray anti-alias pixels)
+        if(trimEdgeX > 0 && (px < trimEdgeX || px > W - trimEdgeX)) { next+=spacing; continue; }
+        // Require the point to be solidly on the letter (not just edge anti-alias)
+        if(!isOn(px, py)) { next+=spacing; continue; }
+        pts.push({x:px,y:py,contourAngle:Math.atan2(dy,dx)});
+        next+=spacing;
+      }
+    }
+  }
+  return pts;
+}
+
+// ─── Text rendering ────────────────────────────────────────────
+function renderMask(text) {
+  const off=document.createElement('canvas');
+  off.width=W;off.height=H;
+  const oc=off.getContext('2d');
+  let fs=Math.min(H*0.62,W/Math.max(text.length,1)*1.4);
+  fs=Math.max(36,Math.min(fs,150));
+  oc.font=`italic ${fs}px 'Playfair Display', serif`;
+  oc.textAlign='center';oc.textBaseline='middle';
+  oc.fillStyle='#000';
+  oc.fillText(text,W/2,H/2);
+  return oc.getImageData(0,0,W,H);
+}
+
+function drawGhostText(text) {
+  let fs=Math.min(H*0.62,W/Math.max(text.length,1)*1.4);
+  fs=Math.max(36,Math.min(fs,150));
+  ctxBg.clearRect(0,0,W,H);
+  ctxBg.font=`italic ${fs}px 'Playfair Display', serif`;
+  ctxBg.textAlign='center';ctxBg.textBaseline='middle';
+  // Warm neutral — the parchment letterform
+  ctxBg.fillStyle='rgba(148,130,100,0.5)';
+  ctxBg.fillText(text,W/2,H/2);
+}
+
+// ─── Plant registry ────────────────────────────────────────────
+class CucumberPlant {
+  constructor(x, y) {
+    this.x = x; this.y = y;
+    const p = PAL.cucumber;
+    this.progress = 0; this.maxP = r(170, 240); this.done = false; this.committed = false;
+    this.stemColor = pk(p.stems); this.stemW = r(1.1, 1.6);
+    // Cucumber vines have exuberant sway and length
+    const h = r(55, 90); const sway = r(-40, 40);
+    this.h = h;
+    this.cp1x = x + sway;        this.cp1y = y - h*0.25;
+    this.cp2x = x - sway*0.5;    this.cp2y = y - h*0.6;
+    this.tipX  = x + sway*0.3;   this.tipY = y - h;
+    // Large lobed leaves — cucumber leaves are big and palmate
+    this.leaves = [];
+    const nL = rn(2, 4);
+    for (let i = 0; i < nL; i++) {
+      const lt = r(0.1, 0.65);
+      const pt = bezierPt(lt, x,y, this.cp1x,this.cp1y, this.cp2x,this.cp2y, this.tipX,this.tipY);
+      this.leaves.push({ t: lt, x: pt.x, y: pt.y, side: Math.random()>0.5?1:-1, size: r(14,24), color: pk(p.leaves), spawnT: lt, angle: r(0.5,1.0) });
+    }
+    // Tendrils — the signature cucumber feature, coiling from nodes
+    this.tendrils = [];
+    const nT = rn(2, 4);
+    for (let i = 0; i < nT; i++) {
+      const lt = r(0.2, 0.75);
+      const pt = bezierPt(lt, x,y, this.cp1x,this.cp1y, this.cp2x,this.cp2y, this.tipX,this.tipY);
+      this.tendrils.push({
+        spawnT: lt, x: pt.x, y: pt.y,
+        side: Math.random()>0.5?1:-1,
+        coils: rn(1,2),
+        radius: r(5, 10),
+        angle: r(0, τ),
+      });
+    }
+    // Fruit along stem — elongated cylinders, sparse
+    this.fruits = [];
+    const nF = Math.random() < 0.4 ? 1 : 0;
+    for (let i = 0; i < nF; i++) {
+      const lt = r(0.3, 0.6);
+      const pt = bezierPt(lt, x,y, this.cp1x,this.cp1y, this.cp2x,this.cp2y, this.tipX,this.tipY);
+      this.fruits.push({
+        spawnT: lt + 0.15,
+        x: pt.x + r(-6,6), y: pt.y + r(-4,6),
+        len: r(15, 27), w: r(6, 9.5),
+        angle: r(-0.4, 0.4) + Math.PI/2,
+        color: pk(p.fruit),
+      });
+    }
+    // Yellow trumpet flowers at tip and nodes
+    this.midFlowerOx = r(-6,6); this.midFlowerOy = r(-4,4);
+    this.showTipFlower = Math.random() < 0.6;
+    this.showMidFlower = Math.random() < 0.6;
+    this.pLen = r(7, 11); this.pW = this.pLen * r(0.5, 0.65);
+    this.pColor = pk(p.petals); this.pHi = pk(p.petalHi); this.pSha = pk(p.petalSha);
+    this.cColor = pk(p.center);
+    this.pal = p;
+  }
+  update() { if (!this.done) { this.progress++; if (this.progress >= this.maxP) this.done = true; } }
+  draw() {
+    const t = Math.min(this.progress / this.maxP, 1);
+    const {x,y,cp1x,cp1y,cp2x,cp2y,tipX,tipY,pal} = this;
+    const tip = bezierPt(t,x,y,cp1x,cp1y,cp2x,cp2y,tipX,tipY);
+    const steps = 22;
+    // Main vine stem
+    ctx.save();
+    ctx.beginPath(); ctx.moveTo(x,y);
+    for(let i=1;i<=steps;i++){const pt=bezierPt((i/steps)*t,x,y,cp1x,cp1y,cp2x,cp2y,tipX,tipY);ctx.lineTo(pt.x,pt.y);}
+    ctx.strokeStyle=pal.outline; ctx.lineWidth=this.stemW+1.2; ctx.lineCap='round'; ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x,y);
+    for(let i=1;i<=steps;i++){const pt=bezierPt((i/steps)*t,x,y,cp1x,cp1y,cp2x,cp2y,tipX,tipY);ctx.lineTo(pt.x,pt.y);}
+    ctx.strokeStyle=this.stemColor; ctx.lineWidth=this.stemW; ctx.stroke();
+    ctx.restore();
+    // Leaves — large palmate (lobed variant)
+    for (const lf of this.leaves) {
+      if(t<lf.spawnT)continue;
+      const lt=Math.min((t-lf.spawnT)/0.2,1);
+      ctx.save(); ctx.globalAlpha=lt;
+      drawLeaf(lf.x,lf.y, lf.side*lf.angle, lt*lf.size, lf.color, pal.leafVein, pal.outline, 1);
+      ctx.restore();
+    }
+    // Tendrils — delicate coiling spirals
+    for (const td of this.tendrils) {
+      if(t<td.spawnT)continue;
+      const tp=Math.min((t-td.spawnT)/0.2,1);
+      ctx.save(); ctx.globalAlpha=tp*0.85;
+      // Draw a spiral arc
+      ctx.beginPath();
+      const startA = td.angle;
+      const endA = td.angle + td.coils * τ * tp;
+      const radiusGrow = td.radius * tp;
+      ctx.moveTo(td.x, td.y);
+      const spiralSteps = 30;
+      for (let i = 1; i <= spiralSteps; i++) {
+        const st = i / spiralSteps;
+        const a = startA + (endA - startA) * st;
+        const rr = radiusGrow * st * 0.8;
+        ctx.lineTo(td.x + td.side * Math.cos(a) * rr, td.y + Math.sin(a) * rr * 0.6);
+      }
+      ctx.strokeStyle = pal.tendril;
+      ctx.lineWidth = 0.7;
+      ctx.lineCap = 'round';
+      ctx.stroke();
+      ctx.restore();
+    }
+    // Fruit — elongated with subtle stripes
+    for (const fr of this.fruits) {
+      if(t<fr.spawnT)continue;
+      const fp=Math.min((t-fr.spawnT)/0.22,1);
+      ctx.save(); ctx.globalAlpha=fp;
+      ctx.translate(fr.x, fr.y);
+      ctx.rotate(fr.angle);
+      // Fruit body — rounded rectangle
+      const fl=fr.len*fp, fw=fr.w*Math.min(fp*2,1);
+      ctx.beginPath();
+      ctx.ellipse(0, 0, fw, fl, 0, 0, τ);
+      ctx.fillStyle=fr.color;
+      ctx.fill();
+      // Stripes
+      ctx.save();
+      ctx.clip();
+      for(let s=-2;s<=2;s++){
+        ctx.beginPath();
+        ctx.moveTo(s*fw*0.45,-fl);ctx.lineTo(s*fw*0.45,fl);
+        ctx.strokeStyle=pal.fruitStripe;ctx.lineWidth=1;ctx.globalAlpha=0.25;ctx.stroke();
+      }
+      ctx.restore();
+      // Highlight
+      ctx.beginPath();
+      ctx.ellipse(-fw*0.3,-fl*0.2,fw*0.25,fl*0.35,0,0,τ);
+      ctx.fillStyle=pal.fruitHi;ctx.fill();
+      // Outline
+      ctx.beginPath();
+      ctx.ellipse(0,0,fw,fl,0,0,τ);
+      ctx.strokeStyle=pal.outline;ctx.lineWidth=0.7;ctx.stroke();
+      // Blossom end nub
+      ctx.beginPath();
+      ctx.ellipse(0,fl,fw*0.5,fw*0.4,0,0,τ);
+      ctx.fillStyle=pal.fruitStripe;ctx.fill();
+      ctx.restore();
+    }
+    // Yellow trumpet flowers — at tip and scattered
+    if(this.showTipFlower && t>0.65){
+      const bt=Math.min((t-0.65)/0.35,1);
+      ctx.save(); ctx.globalAlpha=bt; ctx.translate(tip.x,tip.y);
+      // 5-petal trumpet flower
+      for(let i=0;i<5;i++){
+        const a=(i/5)*τ;
+        drawPetal(0,0,a,this.pLen*bt,this.pW*bt,this.pColor,this.pHi,this.pSha,pal.outline);
+      }
+      drawCircle(0,0,this.pLen*0.22*bt,this.cColor);
+      ctx.restore();
+    }
+    // Small flower at a mid-stem node
+    if(this.showMidFlower && t>0.5){
+      const bt=Math.min((t-0.5)/0.25,1);
+      const midPt=bezierPt(0.45,x,y,cp1x,cp1y,cp2x,cp2y,tipX,tipY);
+      ctx.save(); ctx.globalAlpha=bt*0.85; ctx.translate(midPt.x+this.midFlowerOx,midPt.y+this.midFlowerOy);
+      for(let i=0;i<5;i++){
+        const a=(i/5)*τ;
+        drawPetal(0,0,a,this.pLen*0.75*bt,this.pW*0.75*bt,this.pColor,this.pHi,this.pSha,pal.outline);
+      }
+      drawCircle(0,0,this.pLen*0.18*bt,this.cColor);
+      ctx.restore();
+    }
+  }
+}
+
+const plantClasses = {
+  rose: RosePlant, tomato: TomatoPlant, honeysuckle: HoneysucklePlant,
+  daisy: DaisyPlant, iris: IrisPlant, cucumber: CucumberPlant,
+};
+const spacings = { rose:16, tomato:32, honeysuckle:36, daisy:13, iris:20, cucumber:26 };
+
+const modeRow        = document.getElementById('modeRow');
+const modeToggleInput= document.getElementById('modeToggleInput');
+const labelGarden    = document.getElementById('labelGarden');
+const labelWild      = document.getElementById('labelWild');
+const allTypes       = ['rose','honeysuckle','iris','daisy','tomato','cucumber'];
+
+// Plant button toggle
+document.querySelectorAll('.plant-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const type = btn.dataset.type;
+    if (selectedTypes.has(type)) {
+      if (selectedTypes.size > 1) {
+        selectedTypes.delete(type);
+        btn.classList.remove('active');
+      }
+    } else {
+      selectedTypes.add(type);
+      btn.classList.add('active');
+    }
+    modeRow.classList.toggle('hidden', selectedTypes.size < 2);
+    updateSliderStates();
+  });
+});
+
+// Garden / Wild toggle switch
+// unchecked = Garden (per-letter), checked = Wild (together)
+modeToggleInput.addEventListener('change', () => {
+  growMode = modeToggleInput.checked ? 'together' : 'per-letter';
+  labelGarden.classList.toggle('active-label', !modeToggleInput.checked);
+  labelWild.classList.toggle('active-label', modeToggleInput.checked);
+});
+
+function updateSliderStates() {
+  allTypes.forEach(type => {
+    const input = document.getElementById(`slider-${type}`);
+    if (input) input.classList.toggle('inactive', !selectedTypes.has(type));
+    const btn = document.querySelector(`.plant-btn[data-type="${type}"]`);
+    if (btn) {
+      const row = btn.closest('.plant-row');
+      if (row) row.style.opacity = selectedTypes.has(type) ? '1' : '0.4';
+    }
+  });
+}
+
+// Slider weight listeners
+allTypes.forEach(type => {
+  const input = document.getElementById(`slider-${type}`);
+  if (input) input.addEventListener('input', () => {
+    plantWeights[type] = parseInt(input.value);
+  });
+});
+
+// Helper: build a weighted type pool from selected types + their weights
+// Returns an array where each type appears proportional to its weight
+function buildWeightedPool(typeList) {
+  // Normalise weights so total = 100 slots
+  const total = typeList.reduce((s, t) => s + (plantWeights[t] || 50), 0);
+  if (total === 0) return typeList; // fallback: equal weight
+  const pool = [];
+  typeList.forEach(t => {
+    const slots = Math.max(1, Math.round(((plantWeights[t] || 50) / total) * 100));
+    for (let i = 0; i < slots; i++) pool.push(t);
+  });
+  return pool;
+}
+
+// ─── Main loop ─────────────────────────────────────────────────
+async function startGrowth() {
+  if (growing) return;
+  const text = wordInput.value.trim() || 'bloom';
+  if (animFrame) cancelAnimationFrame(animFrame);
+  ctx.clearRect(0,0,W,H);ctxBg.clearRect(0,0,W,H);
+  plants=[];spawnQueue=[];totalSpawned=0;growing=true;
+  growBtn.classList.add('growing');growBtn.textContent='Growing…';
+  statusText.textContent='Tracing letterforms…';
+
+  await new Promise(res=>setTimeout(res,80));
+  letterMask=renderMask(text);
+  drawGhostText(text); // once, onto bg canvas
+
+  await new Promise(res=>setTimeout(res,40));
+  const edge=getEdgePixels(letterMask);
+  const chains=traceContours(edge);
+  const typeList = [...selectedTypes];
+  const minSpacing = Math.min(...typeList.map(t => spacings[t] || 15));
+
+  // Find actual left/right bounds of the letterform so we can trim
+  // plants that would spawn on stray anti-alias pixels outside the letters
+  let minX=W, maxX=0;
+  for(let y=0;y<H;y++) for(let x=0;x<W;x++){
+    if(letterMask.data[(y*W+x)*4+3]>80){ if(x<minX)minX=x; if(x>maxX)maxX=x; }
+  }
+  const edgeMargin = 6;
+  spawnQueue=buildSpawnQueue(chains,minSpacing,0);
+  spawnQueue=spawnQueue.filter(pt=>pt.x>minX+edgeMargin && pt.x<maxX-edgeMargin);
+
+  // Assign plant type to each spawn point
+  if (growMode === 'per-letter') {
+    // Scan each column of the mask to find which X values have letter pixels.
+    // Gaps between filled columns = boundaries between letters.
+    const colFilled = new Uint8Array(W);
+    for (let x=0; x<W; x++)
+      for (let y=0; y<H; y++)
+        if (letterMask.data[(y*W+x)*4+3] > 80) { colFilled[x]=1; break; }
+
+    // Walk left→right collecting runs of filled columns separated by gaps.
+    // GAP needs to be large enough to split italic letters which nearly touch.
+    const letterBands = [];
+    let inLetter = false, bandStart = 0, emptyRun = 0;
+    const GAP = 8;
+    for (let x=0; x<W; x++) {
+      if (colFilled[x]) {
+        if (!inLetter) { inLetter=true; bandStart=x; emptyRun=0; }
+        else emptyRun=0;
+      } else {
+        if (inLetter) {
+          emptyRun++;
+          if (emptyRun >= GAP) {
+            letterBands.push({x0: bandStart, x1: x - emptyRun});
+            inLetter=false; emptyRun=0;
+          }
+        }
+      }
+    }
+    if (inLetter) letterBands.push({x0: bandStart, x1: W-1});
+
+    // Assign one type per band, cycling through typeList
+    spawnQueue.forEach(pt => {
+      let assigned = typeList[0];
+      for (let i=0; i<letterBands.length; i++) {
+        if (pt.x >= letterBands[i].x0 && pt.x <= letterBands[i].x1) {
+          assigned = typeList[i % typeList.length];
+          break;
+        }
+      }
+      pt.type = assigned;
+    });
+  } else {
+    // Together mode — weighted random mix across all selected types
+    const pool = buildWeightedPool(typeList);
+    spawnQueue.forEach(pt => { pt.type = pool[Math.floor(Math.random()*pool.length)]; });
+  }
+
+  // Apply density: for each point, keep it with probability = weight/100.
+  // weight=100 → keep all, weight=50 → keep ~half, weight=0 → keep none.
+  // In Garden mode each letter already has one type assigned — still thin/thicken per type.
+  spawnQueue = spawnQueue.filter(pt => {
+    const w = plantWeights[pt.type] ?? 50;
+    return Math.random() < (w / 100);
+  });
+
+  let qi=0;
+  const spawnRate = 2;
+  statusText.textContent=`Growing along ${chains.length} contour${chains.length!==1?'s':''}…`;
+
+  function loop() {
+    // Spawn
+    for(let i=0;i<spawnRate&&qi<spawnQueue.length;i++,qi++){
+      const pt=spawnQueue[qi];
+      const Cls=plantClasses[pt.type];
+      const p=new Cls(pt.x,pt.y);
+      // Blend stem angle: perpendicular to contour + upward bias
+      const perp=pt.contourAngle-Math.PI/2;
+      const blended=perp*0.35+(-Math.PI/2)*0.65+r(-0.18,0.18);
+      if('cp1x' in p){
+        // Nudge control points to follow blended angle
+        const ca=Math.cos(blended),sa=Math.sin(blended);
+        const stemLen=p.h||60;
+        p.tipX=p.x+ca*stemLen;p.tipY=p.y+sa*stemLen;
+        p.cp1x=p.x+ca*stemLen*0.3+(pt.contourAngle>0?r(-10,10):r(-8,8));
+        p.cp1y=p.y+sa*stemLen*0.3+r(-8,8);
+        p.cp2x=p.x+ca*stemLen*0.7+r(-12,12);
+        p.cp2y=p.y+sa*stemLen*0.7+r(-8,8);
+        // Recalculate leaf positions
+        for(const lf of p.leaves){
+          const lpt=bezierPt(lf.t,p.x,p.y,p.cp1x,p.cp1y,p.cp2x,p.cp2y,p.tipX,p.tipY);
+          lf.x=lpt.x;lf.y=lpt.y;
+        }
+      }
+      plants.push(p);totalSpawned++;
+    }
+    // Update and draw
+    const next=[];
+    for(const p of plants){
+      p.update();
+      if(!p.committed){
+        p.draw();
+        if(p.done){p.committed=true;}
+      }
+      if(!p.committed)next.push(p);
+    }
+    plants=next;
+    countText.textContent=`${totalSpawned} plants`;
+    if(qi<spawnQueue.length||plants.length>0){
+      animFrame=requestAnimationFrame(loop);
+    } else {
+      growing=false;
+      growBtn.classList.remove('growing');growBtn.textContent='Grow';
+      statusText.textContent=`${totalSpawned} plants grown`;
+    }
+  }
+  animFrame=requestAnimationFrame(loop);
+}
+
+function reset() {
+  if(animFrame)cancelAnimationFrame(animFrame);
+  ctx.clearRect(0,0,W,H);ctxBg.clearRect(0,0,W,H);
+  plants=[];growing=false;totalSpawned=0;
+  growBtn.classList.remove('growing');growBtn.textContent='Grow';
+  statusText.textContent='Enter a word and press Grow';
+  countText.textContent='';
+}
+
+growBtn.addEventListener('click',startGrowth);
+resetBtn.addEventListener('click',reset);
+wordInput.addEventListener('keydown',e=>{if(e.key==='Enter')startGrowth();});
+window.addEventListener('load',()=>setTimeout(startGrowth,500));
+</script>
+</body>
+</html>
