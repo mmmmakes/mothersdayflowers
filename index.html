@@ -9,7 +9,7 @@
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   :root {
     --bg: #f2ece0; --paper: #f8f3e8; --ink: #2a2016;
-    --ink-light: #5a4a30; --muted: #9a8a6a; --border: #cfc0a0; --accent: #5a6840;
+    --ink-light: #4a3a20; --muted: #6e5e3e; --border: #cfc0a0; --accent: #5a6840;
   }
   html, body { min-height: 100%; background: var(--bg); color: var(--ink); font-family: 'Cormorant Garamond', serif; }
   body {
@@ -41,8 +41,8 @@
   /* Text input */
   .input-wrap { width: 100%; max-width: 680px; border-bottom: 1.5px solid var(--ink); display: flex; align-items: center; gap: 0.5rem; }
   .input-wrap::before { content: '❧'; color: var(--muted); font-size: 0.9rem; }
-  input[type="text"] { flex: 1; background: transparent; border: none; outline: none; color: var(--ink); font-family: 'Playfair Display', serif; font-size: 1.4rem; font-style: italic; padding: 0.45rem 0; letter-spacing: 0.04em; }
-  input[type="text"]::placeholder { color: var(--muted); }
+  input[type="text"] { flex: 1; background: transparent; border: none; outline: none; color: var(--ink); font-family: 'Playfair Display', serif; font-size: 1.4rem; font-style: italic; padding: 0.45rem 0; letter-spacing: normal; }
+  input[type="text"]::placeholder { color: #b8a888; opacity: 1; }
 
   /* Controls panel — below canvas */
   .controls { width: 100%; max-width: 680px; display: flex; flex-direction: column; gap: 1rem; }
@@ -118,7 +118,7 @@
 </div>
 
 <div class="input-wrap">
-  <input type="text" id="wordInput" placeholder="type a word…" maxlength="16" value="type here" />
+  <input type="text" id="wordInput" placeholder="type here" maxlength="16" />
 </div>
 
 <div class="canvas-wrap" id="canvasWrap">
@@ -1622,7 +1622,13 @@ function reset() {
 growBtn.addEventListener('click',startGrowth);
 resetBtn.addEventListener('click',reset);
 wordInput.addEventListener('keydown',e=>{if(e.key==='Enter')startGrowth();});
-window.addEventListener('load',()=>setTimeout(startGrowth,500));
+wordInput.addEventListener('input',()=>{
+  if(growing)return;
+  const text=wordInput.value.trim();
+  ctx.clearRect(0,0,W,H);
+  if(text)drawGhostText(text);
+  else ctxBg.clearRect(0,0,W,H);
+});
 </script>
 </body>
 </html>
